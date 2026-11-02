@@ -3,6 +3,9 @@
 This uses the separate [`ssh-setup`](https://github.com/yellowfinch05/sshscript)
 program to set up SSH keys, so you do not have to create or copy keys by hand.
 
+These instructions work on macOS and Linux. On Windows, use Windows
+Subsystem for Linux (WSL) or Git Bash, then run the same commands there.
+
 ### 1. Download both programs
 
 Run these commands on your own computer:
