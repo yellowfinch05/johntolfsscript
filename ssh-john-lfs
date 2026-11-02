@@ -2,11 +2,17 @@
 
 set -euo pipefail
 
+# These constants keep the remote host, login name, and local configuration
+# location in one place. The configuration lives under XDG_CONFIG_HOME when
+# it is set, while retaining the conventional ~/.config location otherwise.
 readonly JOHN_HOST="john.cedarville.edu"
 readonly LFS_USER="lfs"
 readonly CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/ssh-john-lfs"
 readonly CONFIG_FILE="${CONFIG_DIR}/connection.conf"
 
+# The help text describes the two SSH hops rather than hiding the remote
+# command construction. In particular, LFS-Machine-IP must run on John's
+# shell, so its command substitution is deliberately preserved as backticks.
 usage() {
     cat <<'EOF'
 ssh-john-lfs connects to John and then to an LFS machine with one command.
@@ -38,6 +44,10 @@ error() {
     exit 2
 }
 
+# User-provided values are inserted into an SSH command, so accept only the
+# characters needed for usernames and machine numbers. This both catches
+# configuration mistakes early and prevents shell syntax from being supplied
+# through the prompts or saved configuration file.
 valid_username() {
     [[ "$1" =~ ^[[:alnum:]_.-]+$ ]]
 }
@@ -46,6 +56,8 @@ valid_machine_number() {
     [[ "$1" =~ ^[[:digit:]]+$ ]]
 }
 
+# Store the two settings with restrictive permissions because the file is
+# user configuration and should not be readable or writable by other users.
 save_settings() {
     local john_user=$1
     local lfs_machine_number=$2
@@ -60,6 +72,9 @@ load_settings() {
     local saved_user saved_machine_number extra
 
     [[ -r "$CONFIG_FILE" ]] || return 1
+
+    # Read exactly two lines. Rejecting trailing data prevents a partially
+    # edited or manually corrupted file from being treated as valid settings.
     {
         IFS= read -r saved_user
         IFS= read -r saved_machine_number
@@ -74,6 +89,9 @@ load_settings() {
     lfs_machine_number=$saved_machine_number
 }
 
+# Prompt until both values pass the same validation used for saved settings.
+# Saving only after both prompts succeed avoids leaving a mixed old/new
+# configuration when input is interrupted or invalid.
 configure() {
     local john_user_input lfs_machine_number_input
 
@@ -100,6 +118,9 @@ configure() {
     printf 'Saved settings in %s\n' "$CONFIG_FILE"
 }
 
+# Parse options before loading settings so --redo can force a fresh prompt.
+# Keep option handling explicit because this script accepts no positional
+# arguments and should report typos instead of ignoring them.
 redo_setup=0
 while (($# > 0)); do
     case "$1" in
@@ -123,6 +144,9 @@ if ((redo_setup)) || ! load_settings; then
     configure
 fi
 
+# Build the second hop as a command string for John's shell. The backticks
+# must survive the local shell so that LFS-Machine-IP resolves the address on
+# the intermediate host, not on the user's local machine.
 printf 'Connecting to %s@%s, then %s@`LFS-Machine-IP %s`...\n' \
     "$john_user" "$JOHN_HOST" "$LFS_USER" "$lfs_machine_number"
 remote_command='ssh -tt '"${LFS_USER}"'@`LFS-Machine-IP '"$lfs_machine_number"'`'
