@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly JOHN_HOST="john.cedarville.edu"
+readonly LFS_USER="lfs"
+readonly CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/ssh-john-lfs"
+readonly CONFIG_FILE="${CONFIG_DIR}/connection.conf"
+
+usage() {
+    cat <<'EOF'
+ssh-john-lfs connects to John and then to an LFS machine with one command.
+It assumes SSH keys are already configured for both connections.
+
+Usage:
+  ssh-john-lfs             Connect using saved settings
+  ssh-john-lfs --redo      Ask for the settings again
+  ssh-john-lfs -h          Show this help
+
+On the first run, the script asks for:
+  1. Your John username (for example: jlansfo)
+  2. Your LFS machine number (for example: 4)
+
+The connection is equivalent to:
+  ssh YOUR_USER@john.cedarville.edu
+  ssh lfs@`LFS-Machine-IP <YOUR_MACHINE_NUMBER>`
+
+The backticks are passed to John's shell so that LFS-Machine-IP resolves the
+machine address there.
+
+Saved settings:
+  ~/.config/ssh-john-lfs/connection.conf
+EOF
+}
+
+error() {
+    printf 'ssh-john-lfs: %s\n' "$1" >&2
+    exit 2
+}
+
+valid_username() {
+    [[ "$1" =~ ^[[:alnum:]_.-]+$ ]]
+}
+
+valid_machine_number() {
+    [[ "$1" =~ ^[[:digit:]]+$ ]]
+}
+
+save_settings() {
+    local john_user=$1
+    local lfs_machine_number=$2
+
+    mkdir -p "$CONFIG_DIR"
+    chmod 700 "$CONFIG_DIR"
+    printf '%s\n%s\n' "$john_user" "$lfs_machine_number" > "$CONFIG_FILE"
+    chmod 600 "$CONFIG_FILE"
+}
+
+load_settings() {
+    local saved_user saved_machine_number extra
+
+    [[ -r "$CONFIG_FILE" ]] || return 1
+    {
+        IFS= read -r saved_user
+        IFS= read -r saved_machine_number
+        if IFS= read -r extra; then
+            return 1
+        fi
+    } < "$CONFIG_FILE"
+
+    valid_username "$saved_user" &&
+        valid_machine_number "$saved_machine_number" || return 1
+    john_user=$saved_user
+    lfs_machine_number=$saved_machine_number
+}
+
+configure() {
+    local john_user_input lfs_machine_number_input
+
+    while :; do
+        read -r -p "John username (without @${JOHN_HOST}): " john_user_input
+        if valid_username "$john_user_input"; then
+            break
+        fi
+        printf 'Enter a valid username using letters, numbers, ., _, or -.\n' >&2
+    done
+
+    while :; do
+        read -r -p "LFS machine number (used by LFS-Machine-IP): " \
+            lfs_machine_number_input
+        if valid_machine_number "$lfs_machine_number_input"; then
+            break
+        fi
+        printf 'Enter a machine number containing only digits.\n' >&2
+    done
+
+    save_settings "$john_user_input" "$lfs_machine_number_input"
+    john_user=$john_user_input
+    lfs_machine_number=$lfs_machine_number_input
+    printf 'Saved settings in %s\n' "$CONFIG_FILE"
+}
+
+redo_setup=0
+while (($# > 0)); do
+    case "$1" in
+        --redo|--reset)
+            redo_setup=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            error "unknown option: $1 (use -h for help)"
+            ;;
+    esac
+done
+
+john_user=""
+lfs_machine_number=""
+if ((redo_setup)) || ! load_settings; then
+    configure
+fi
+
+printf 'Connecting to %s@%s, then %s@`LFS-Machine-IP %s`...\n' \
+    "$john_user" "$JOHN_HOST" "$LFS_USER" "$lfs_machine_number"
+remote_command='ssh -tt '"${LFS_USER}"'@`LFS-Machine-IP '"$lfs_machine_number"'`'
+exec ssh -tt "${john_user}@${JOHN_HOST}" "$remote_command"
