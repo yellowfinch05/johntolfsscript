@@ -1,21 +1,91 @@
 # John to LFS SSH launcher
 
-`ssh-john-lfs` opens an SSH session to John and then automatically connects
-from John to the configured LFS machine using
-`ssh lfs@`LFS-Machine-IP <machine-number>``.
+This uses the separate [`ssh-setup`](https://github.com/yellowfinch05/sshscript)
+program to set up SSH keys, so you do not have to create or copy keys by hand.
 
-## Usage
+## Setup
 
-Make the script executable and run it:
+Replace `YOUR_USERNAME` with your John username and `MACHINE_NUMBER` with your
+LFS machine number.
+
+### 1. Download both programs
+
+Run these commands on your own computer:
 
 ```sh
-chmod +x ssh-john-lfs
-./ssh-john-lfs
+mkdir -p ~/bin
+curl -L https://raw.githubusercontent.com/yellowfinch05/sshscript/main/ssh-setup \
+  -o ~/bin/ssh-setup
+curl -L https://raw.githubusercontent.com/yellowfinch05/johntolfsscript/main/ssh-john-lfs \
+  -o ~/bin/ssh-john-lfs
+chmod +x ~/bin/ssh-setup ~/bin/ssh-john-lfs
 ```
 
-The first run asks for the John username and LFS machine number. The number
-is used in the command substitution `` `LFS-Machine-IP <number>` `` and the
-values are saved locally for subsequent runs. Use `--redo` to replace them,
-or `-h` to display all commands and options.
+### 2. Set up SSH to John
 
-SSH keys must already be configured for both connections.
+Run this on your own computer:
+
+```sh
+~/bin/ssh-setup YOUR_USERNAME@john.cedarville.edu
+```
+
+Follow the prompts. This installs your SSH key on John.
+
+### 3. Copy `ssh-setup` to John
+
+Still on your own computer, run:
+
+```sh
+scp ~/bin/ssh-setup YOUR_USERNAME@john.cedarville.edu:~/
+```
+
+### 4. Set up SSH to LFS
+
+Log in to John:
+
+```sh
+ssh YOUR_USERNAME@john.cedarville.edu
+```
+
+On John, make `ssh-setup` executable:
+
+```sh
+chmod +x ~/ssh-setup
+```
+
+Find your LFS machine's address:
+
+```sh
+LFS-Machine-IP MACHINE_NUMBER
+```
+
+Use the address shown by that command with `ssh-setup`:
+
+```sh
+~/ssh-setup lfs@LFS_ADDRESS
+```
+
+Follow the prompts. This installs John's SSH key on LFS.
+
+### 5. Connect all the way through
+
+Leave John and return to your own computer:
+
+```sh
+exit
+```
+
+Run the local copy of the launcher:
+
+```sh
+~/bin/ssh-john-lfs
+```
+
+Enter your John username and machine number when asked. The launcher then
+connects to John and from John to LFS.
+
+The launcher remembers those answers. To enter them again, use:
+
+```sh
+~/bin/ssh-john-lfs --redo
+```
