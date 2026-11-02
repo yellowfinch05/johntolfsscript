@@ -3,11 +3,6 @@
 This uses the separate [`ssh-setup`](https://github.com/yellowfinch05/sshscript)
 program to set up SSH keys, so you do not have to create or copy keys by hand.
 
-## Setup
-
-Replace `YOUR_USERNAME` with your John username and `MACHINE_NUMBER` with your
-LFS machine number.
-
 ### 1. Download both programs
 
 Run these commands on your own computer:
@@ -89,3 +84,5 @@ The launcher remembers those answers. To enter them again, use:
 ```sh
 ~/bin/ssh-john-lfs --redo
 ```
+
+now you can simply run ssh-john-lfs and get all the way to the lfs machine with no passwords and no remembering commands!
